@@ -308,7 +308,15 @@ input[type="file"] {
     }
     
     /* 隐藏摄像头预览和状态栏，移动端不需要 */
-    .camera-container, .status-bar {
+    /* 注意：不能用 display: none，否则 MediaPipe 无法读取视频流 */
+    .camera-container {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        position: fixed;
+        z-index: -1;
+    }
+    
+    .status-bar {
         display: none !important;
     }
     

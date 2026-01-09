@@ -210,24 +210,20 @@ function isMobileDevice() {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
 
-// 移动端触屏控制
+// 移动端触屏控制 (仅保留旋转辅助)
 function initTouchControls() {
     let startX = 0;
-    let initialDistance = 0;
     
     document.addEventListener('touchstart', (e) => {
         if(e.touches.length === 1) {
             startX = e.touches[0].clientX;
-        } else if (e.touches.length === 2) {
-            const dx = e.touches[0].clientX - e.touches[1].clientX;
-            const dy = e.touches[0].clientY - e.touches[1].clientY;
-            initialDistance = Math.sqrt(dx*dx + dy*dy);
         }
     }, {passive: false});
 
     document.addEventListener('touchmove', (e) => {
-        if (e.target.closest('.controls')) return; // 允许触摸UI按钮
-        e.preventDefault(); // 防止页面滚动
+        if (e.target.closest('.controls')) return; 
+        // 不阻止默认行为，防止无法滚动页面（如果需要的话），或者阻止以防抖动
+        // e.preventDefault(); 
         
         if(e.touches.length === 1) {
             const currentX = e.touches[0].clientX;
@@ -235,32 +231,8 @@ function initTouchControls() {
             // 简单旋转映射
             const rot = (deltaX / window.innerWidth) * 2; 
             if(particleSystem) particleSystem.setRotation(rot);
-        } else if (e.touches.length === 2) {
-            const dx = e.touches[0].clientX - e.touches[1].clientX;
-            const dy = e.touches[0].clientY - e.touches[1].clientY;
-            const currentDistance = Math.sqrt(dx*dx + dy*dy);
-            
-            // 简单的阈值判定
-            if (currentDistance < initialDistance - 30) {
-                // 捏合 -> 变成照片
-                handleGesture('PINCH');
-            } else if (currentDistance > initialDistance + 30) {
-                // 张开 -> 变回狗
-                handleGesture('FIST');
-            }
         }
     }, {passive: false});
-    
-    // 双击爆散
-    let lastTap = 0;
-    document.addEventListener('touchend', (e) => {
-        const currentTime = new Date().getTime();
-        const tapLength = currentTime - lastTap;
-        if (tapLength < 300 && tapLength > 0) {
-            handleGesture('PALM');
-        }
-        lastTap = currentTime;
-    });
 }
 
 // 启动流程
@@ -271,27 +243,24 @@ window.onload = async () => {
     const videoElement = document.getElementById('video-feed');
     const canvasElement = document.getElementById('camera-overlay');
     
-    if (isMobileDevice()) {
-        // === 移动端触屏模式 ===
-        initTouchControls();
-        document.getElementById('status-text').innerText = "触摸模式：点击/双指捏合";
+    // 无论移动端还是桌面端，都初始化摄像头
+    gestureController = new GestureController(videoElement, canvasElement, handleGesture);
+    const cameraSuccess = await gestureController.init();
+    
+    const statusText = document.getElementById('status-text');
+    if (cameraSuccess) {
         STATE.cameraReady = true;
-        
-        // 隐藏不必要的桌面端提示
-        // 自动触发一次召唤以展示
-        setTimeout(() => handleGesture('FIST'), 1000);
-        
+        statusText.innerText = "摄像头已连接，请挥手";
     } else {
-        // === 桌面端摄像头模式 ===
-        gestureController = new GestureController(videoElement, canvasElement, handleGesture);
-        const cameraSuccess = await gestureController.init();
-        
-        const statusText = document.getElementById('status-text');
+        statusText.innerText = "摄像头连接失败，仅展示动画";
+    }
+
+    // 移动端额外添加触屏旋转辅助
+    if (isMobileDevice()) {
+        initTouchControls();
+        // 覆盖状态文本，提示用户可以使用手势
         if (cameraSuccess) {
-            STATE.cameraReady = true;
-            statusText.innerText = "摄像头已连接，请挥手";
-        } else {
-            statusText.innerText = "摄像头连接失败，仅展示动画";
+            statusText.innerText = ""; // 移动端状态栏已隐藏，这里不用管
         }
     }
 
